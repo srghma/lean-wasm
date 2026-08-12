@@ -477,51 +477,7 @@ def mem_int (instr : Syntax.Instr.Memory.Integer nn)
             : Dynamics.Instr.Dynamic :=
   mem (.integer instr)
 
-namespace Memory
-
-/- todo: rewriting read/write memory
-
-inductive Integer.Load (instr : Numeric.Sign → Memory.Arg → Memory.Integer nn)
-               : (nBits : { i // 0 < i }) → Step
-| unsigned  : {h : f.module.memaddrs.length > 0}
-            → {a : Fin s.mems.length}
-            → {n : Unsigned nBits}
-            → {c : Unsigned nn.toBits}
-            → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h⟩}
-            → {_ : m = s.mems.get a}
-            → {_ : ea = i.toNat + arg.offset.toNat}
-            → {_ : ea + (nBits.val / 8) ≤ m.data.length}
-            → {_ : b = (m.data.list.drop ea).take (nBits.val / 8)}
-            → {_ : b = Unsigned.toBytes nBits n}
-            → {_ : c = Unsigned.extend n}
-            → Integer.Load instr nBits
-                   (s, (f, @mem_int nn (instr .u arg) :: @const .double i :: is))
-                   (s, (f, @const nn c :: is))
-| signed    : {h : f.module.memaddrs.length > 0}
-            → {a : Fin s.mems.length}
-            → {n : Unsigned nBits}
-            → {c : Signed nn.toBits}
-            → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h⟩}
-            → {_ : m = s.mems.get a}
-            → {_ : ea = i.toNat + arg.offset.toNat}
-            → {_ : ea + (nBits.val / 8) ≤ m.data.length}
-            → {_ : b = (m.data.list.drop ea).take (nBits.val / 8)}
-            → {_ : b = Unsigned.toBytes nBits n}
-            → {_ : c = Signed.extend n}
-            → Integer.Load instr nBits
-                   (s, (f, @mem_int nn (instr .s arg) :: @const .double i :: is))
-                   (s, (f, @const nn c :: is))
-| trap      : {h : f.module.memaddrs.length > 0}
-            → {a : Fin s.mems.length}
-            → {n : Unsigned nBits}
-            → {c : Unsigned nn.toBits}
-            → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h⟩}
-            → {_ : m = s.mems.get a}
-            → {_ : ea = i.toNat + arg.offset.toNat}
-            → {_ : ea + (nBits.val / 8) > m.data.length}
-            → Integer.Load instr nBits
-                   (s, (f, @mem_int nn (instr .u arg) :: @const .double i :: is))
-                   (s, (f, .admin .trap :: is))
+namespace Step.Memory
 
 inductive Integer : Step
 | load    : {nn : Numeric.Size}
@@ -534,26 +490,130 @@ inductive Integer : Step
           → {_ : ea = i.toNat + arg.offset.toNat}
           → {_ : ea + nBytes ≤ m.data.length}
           → {_ : b = ((m.data.list.drop ea).take nBytes)}
-          → {_ : b = Unsigned.toBytes nn.toBits c}
+          → {_ : b = (Unsigned.toBytes nn.toBits c).toList}
           → Integer (s, (f, @mem_int nn (.load arg) :: @const .double i :: is))
                     (s, (f, @const nn c :: is))
 | load_t  : {nn : Numeric.Size}
           → {h₁ : f.module.memaddrs.length > 0}
           → {a : Fin s.mems.length}
           → {_ : nBytes = nn.toBytes}
-          → {c : Unsigned nn.toBits}
           → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
           → {_ : m = s.mems.get a}
           → {_ : ea = i.toNat + arg.offset.toNat}
           → {_ : ea + nBytes > m.data.length}
           → Integer (s, (f, @mem_int nn (.load arg) :: @const .double i :: is))
                     (s, (f, .admin .trap :: is))
-| load8   : Integer.Load .load8 ⟨8, by simp⟩ config config'
-          → Integer config config'
-| load16  : Integer.Load .load16 ⟨16, by simp⟩ config config'
-          → Integer config config'
-| load32  : Integer.Load .load32 ⟨32, by simp⟩ config config'
-          → Integer config config'
+| load8_u : {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c_small : Unsigned 8}
+          → {c : Unsigned nn.toBits}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 1 ≤ m.data.length}
+          → {_ : b = ((m.data.list.drop ea).take 1)}
+          → {_ : b = (Unsigned.toBytes ⟨8, by simp⟩ c_small).toList}
+          → {_ : Unsigned.extend c_small = c}
+          → Integer (s, (f, @mem_int nn (.load8 .u arg) :: @const .double i :: is))
+                    (s, (f, @const nn c :: is))
+| load8_s : {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c_small : Unsigned 8}
+          → {c : Signed nn.toBits}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 1 ≤ m.data.length}
+          → {_ : b = ((m.data.list.drop ea).take 1)}
+          → {_ : b = (Unsigned.toBytes ⟨8, by simp⟩ c_small).toList}
+          → {_ : Signed.extend (Signed.ofUnsignedN c_small) = c}
+          → Integer (s, (f, @mem_int nn (.load8 .s arg) :: @const .double i :: is))
+                    (s, (f, @const nn c :: is))
+| load8_t : {nn : Numeric.Size}
+          → {sign : Numeric.Sign}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 1 > m.data.length}
+          → Integer (s, (f, @mem_int nn (.load8 sign arg) :: @const .double i :: is))
+                    (s, (f, .admin .trap :: is))
+| load16_u: {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c_small : Unsigned 16}
+          → {c : Unsigned nn.toBits}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 2 ≤ m.data.length}
+          → {_ : b = ((m.data.list.drop ea).take 2)}
+          → {_ : b = (Unsigned.toBytes ⟨16, by simp⟩ c_small).toList}
+          → {_ : Unsigned.extend c_small = c}
+          → Integer (s, (f, @mem_int nn (.load16 .u arg) :: @const .double i :: is))
+                    (s, (f, @const nn c :: is))
+| load16_s: {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c_small : Unsigned 16}
+          → {c : Signed nn.toBits}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 2 ≤ m.data.length}
+          → {_ : b = ((m.data.list.drop ea).take 2)}
+          → {_ : b = (Unsigned.toBytes ⟨16, by simp⟩ c_small).toList}
+          → {_ : Signed.extend (Signed.ofUnsignedN c_small) = c}
+          → Integer (s, (f, @mem_int nn (.load16 .s arg) :: @const .double i :: is))
+                    (s, (f, @const nn c :: is))
+| load16_t: {nn : Numeric.Size}
+          → {sign : Numeric.Sign}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 2 > m.data.length}
+          → Integer (s, (f, @mem_int nn (.load16 sign arg) :: @const .double i :: is))
+                    (s, (f, .admin .trap :: is))
+| load32_u: {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c_small : Unsigned 32}
+          → {c : Unsigned 64}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 4 ≤ m.data.length}
+          → {_ : b = ((m.data.list.drop ea).take 4)}
+          → {_ : b = (Unsigned.toBytes ⟨32, by simp⟩ c_small).toList}
+          → {_ : Unsigned.extend c_small = c}
+          → Integer (s, (f, @mem_int .quad (.load32 .u arg) :: @const .double i :: is))
+                    (s, (f, @const .quad c :: is))
+| load32_s: {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c_small : Unsigned 32}
+          → {c : Signed 64}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 4 ≤ m.data.length}
+          → {_ : b = ((m.data.list.drop ea).take 4)}
+          → {_ : b = (Unsigned.toBytes ⟨32, by simp⟩ c_small).toList}
+          → {_ : Signed.extend (Signed.ofUnsignedN c_small) = c}
+          → Integer (s, (f, @mem_int .quad (.load32 .s arg) :: @const .double i :: is))
+                    (s, (f, @const .quad c :: is))
+| load32_t: {sign : Numeric.Sign}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 4 > m.data.length}
+          → Integer (s, (f, @mem_int .quad (.load32 sign arg) :: @const .double i :: is))
+                    (s, (f, .admin .trap :: is))
 | store   : {nn : Numeric.Size}
           → {h₁ : f.module.memaddrs.length > 0}
           → {a : Fin s.mems.length}
@@ -563,15 +623,234 @@ inductive Integer : Step
           → {_ : m = s.mems.get a}
           → {_ : ea = i.toNat + arg.offset.toNat}
           → {_ : ea + nBytes ≤ m.data.length}
-          → {_ : b = Unsigned.toBytes nn.toBits c}
+          → {_ : b = (Unsigned.toBytes nn.toBits c).toList}
           → {_ : m' = Instance.Memory.write m b ea}
-        --   → {_ : s' = }
+          → {_ : s' = {s with mems := s.mems.set a m'}}
           → Integer (s, (f, @mem_int nn (.store arg) :: @const nn c :: @const .double i :: is))
-                    (s, (f, @const nn c :: is))
--- todo more
--/
+                    (s', (f, is))
+| store_t : {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c : Unsigned (Numeric.Size.toBits nn)}
+          → {_ : nBytes = nn.toBytes}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + nBytes > m.data.length}
+          → Integer (s, (f, @mem_int nn (.store arg) :: @const nn c :: @const .double i :: is))
+                    (s, (f, .admin .trap :: is))
+| store8  : {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c : Unsigned (Numeric.Size.toBits nn)}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 1 ≤ m.data.length}
+          → {c_small : Unsigned 8}
+          → {_ : c_small = Unsigned.ofNat (c.toNat % 256)}
+          → {_ : b = (Unsigned.toBytes ⟨8, by simp⟩ c_small).toList}
+          → {_ : m' = Instance.Memory.write m b ea}
+          → {_ : s' = {s with mems := s.mems.set a m'}}
+          → Integer (s, (f, @mem_int nn (.store8 arg) :: @const nn c :: @const .double i :: is))
+                    (s', (f, is))
+| store8_t: {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c : Unsigned (Numeric.Size.toBits nn)}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 1 > m.data.length}
+          → Integer (s, (f, @mem_int nn (.store8 arg) :: @const nn c :: @const .double i :: is))
+                    (s, (f, .admin .trap :: is))
+| store16 : {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c : Unsigned (Numeric.Size.toBits nn)}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 2 ≤ m.data.length}
+          → {c_small : Unsigned 16}
+          → {_ : c_small = Unsigned.ofNat (c.toNat % 65536)}
+          → {_ : b = (Unsigned.toBytes ⟨16, by simp⟩ c_small).toList}
+          → {_ : m' = Instance.Memory.write m b ea}
+          → {_ : s' = {s with mems := s.mems.set a m'}}
+          → Integer (s, (f, @mem_int nn (.store16 arg) :: @const nn c :: @const .double i :: is))
+                    (s', (f, is))
+| store16_t: {nn : Numeric.Size}
+          → {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c : Unsigned (Numeric.Size.toBits nn)}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 2 > m.data.length}
+          → Integer (s, (f, @mem_int nn (.store16 arg) :: @const nn c :: @const .double i :: is))
+                    (s, (f, .admin .trap :: is))
+| store32 : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c : Unsigned 64}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 4 ≤ m.data.length}
+          → {c_small : Unsigned 32}
+          → {_ : c_small = Unsigned.ofNat (c.toNat % 4294967296)}
+          → {_ : b = (Unsigned.toBytes ⟨32, by simp⟩ c_small).toList}
+          → {_ : m' = Instance.Memory.write m b ea}
+          → {_ : s' = {s with mems := s.mems.set a m'}}
+          → Integer (s, (f, @mem_int .quad (.store32 arg) :: @const .quad c :: @const .double i :: is))
+                    (s', (f, is))
+| store32_t: {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {c : Unsigned 64}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : ea = i.toNat + arg.offset.toNat}
+          → {_ : ea + 4 > m.data.length}
+          → Integer (s, (f, @mem_int .quad (.store32 arg) :: @const .quad c :: @const .double i :: is))
+                    (s, (f, .admin .trap :: is))
 
-end Memory
+
+inductive Memory : Step
+| integer : Integer config config' → Memory config config'
+| size    : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → Memory (s, (f, mem .size :: is))
+                   (s, (f, @const .double (Unsigned.ofNat (m.data.length / 65536)) :: is))
+| grow    : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {prev_sz : Nat}
+          → {_ : prev_sz = m.data.length / 65536}
+          → {m' : Instance.Memory}
+          → {_ : m'.data.length = m.data.length + n.toNat * 65536}
+          → {_ : s' = {s with mems := s.mems.set a m'}}
+          → Memory (s, (f, mem .grow :: @const .double n :: is))
+                   (s', (f, @const .double (Unsigned.ofNat prev_sz) :: is))
+| grow_e  : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {n : Unsigned Numeric.Size.double.toBits}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → Memory (s, (f, mem .grow :: @const .double n :: is))
+                   (s, (f, @const .double (Unsigned.ofNat (2^32 - 1)) :: is))
+| fill    : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {val : Unsigned Numeric.Size.double.toBits}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : i.toNat + n.toNat + 1 ≤ m.data.length}
+          → Memory (s, (f, mem .fill :: @const .double (n + 1) :: @const .double val :: @const .double i :: is))
+                   (s, (f, mem .fill :: @const .double n :: @const .double val :: @const .double (i + 1)
+                         :: mem (.integer ((.store8 ⟨0, 0⟩) : Syntax.Instr.Memory.Integer .double)) :: @const .double val :: @const .double i :: is))
+| fill_z  : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {val : Unsigned Numeric.Size.double.toBits}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : i.toNat ≤ m.data.length}
+          → Memory (s, (f, mem .fill :: @const .double 0 :: @const .double val :: @const .double i :: is))
+                   (s, (f, is))
+| fill_t  : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {val : Unsigned Numeric.Size.double.toBits}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : i.toNat + n.toNat > m.data.length}
+          → Memory (s, (f, mem .fill :: @const .double n :: @const .double val :: @const .double i :: is))
+                   (s, (f, .admin .trap :: is))
+| copy_le : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          ------------
+          → {_ : m = s.mems.get a}
+          → {_ : src.toNat + n.toNat + 1 ≤ m.data.length}
+          → {_ : dst.toNat + n.toNat + 1 ≤ m.data.length}
+          → {_ : dst.toNat ≤ src.toNat}
+          → Memory (s, (f, mem .copy :: @const .double (n + 1) :: @const .double src :: @const .double dst :: is))
+                   (s, (f, mem .copy :: @const .double n :: @const .double (src + 1) :: @const .double (dst + 1)
+                         :: mem (.integer ((.store8 ⟨0, 0⟩) : Syntax.Instr.Memory.Integer .double))
+                         :: mem (.integer ((.load8 .u ⟨0, 0⟩) : Syntax.Instr.Memory.Integer .double)) :: @const .double src
+                         :: @const .double dst :: is))
+| copy_gt : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : src.toNat + n.toNat + 1 ≤ m.data.length}
+          → {_ : dst.toNat + n.toNat + 1 ≤ m.data.length}
+          → {_ : dst.toNat > src.toNat}
+          → Memory (s, (f, mem .copy :: @const .double (n + 1) :: @const .double src :: @const .double dst :: is))
+                   (s, (f, mem .copy :: @const .double n :: @const .double src :: @const .double dst
+                         :: mem (.integer ((.store8 ⟨0, 0⟩) : Syntax.Instr.Memory.Integer .double))
+                         :: mem (.integer ((.load8 .u ⟨0, 0⟩) : Syntax.Instr.Memory.Integer .double)) :: @const .double (src + n)
+                         :: @const .double (dst + n) :: is))
+| copy_z  : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : src.toNat ≤ m.data.length}
+          → {_ : dst.toNat ≤ m.data.length}
+          → Memory (s, (f, mem .copy :: @const .double 0 :: @const .double src :: @const .double dst :: is))
+                   (s, (f, is))
+| copy_t  : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : src.toNat + n.toNat > m.data.length ∨ dst.toNat + n.toNat > m.data.length}
+          → Memory (s, (f, mem .copy :: @const .double n :: @const .double src :: @const .double dst :: is))
+                   (s, (f, .admin .trap :: is))
+| init : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {da : Fin s.datas.length}
+          → {y : Fin f.module.dataaddrs.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : Vec.index s.datas da = f.module.dataaddrs.get y}
+          → {_ : dat = s.datas.get da}
+          → {h₂ : src.toNat + n.toNat + 1 ≤ dat.data.length}
+          → {h₃ : dst.toNat + n.toNat + 1 ≤ m.data.length}
+          → {b : Syntax.Value.Byte}
+          → {_ : dat.data.list.get? src.toNat = .some b}
+          → Memory (s, (f, mem (.init (Vec.index f.module.dataaddrs y)) :: @const .double (n + 1) :: @const .double src :: @const .double dst :: is))
+                   (s, (f, mem (.init (Vec.index f.module.dataaddrs y)) :: @const .double n :: @const .double (src + 1) :: @const .double (dst + 1)
+                         :: mem (.integer ((.store8 ⟨0, 0⟩) : Syntax.Instr.Memory.Integer .double)) :: @const .double (Unsigned.ofNat b.toNat) :: @const .double dst :: is))
+| init_z  : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {da : Fin s.datas.length}
+          → {y : Fin f.module.dataaddrs.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : Vec.index s.datas da = f.module.dataaddrs.get y}
+          → {_ : dat = s.datas.get da}
+          → {_ : src.toNat ≤ dat.data.length}
+          → {_ : dst.toNat ≤ m.data.length}
+          → Memory (s, (f, mem (.init (Vec.index f.module.dataaddrs y)) :: @const .double 0 :: @const .double src :: @const .double dst :: is))
+                   (s, (f, is))
+| init_t  : {h₁ : f.module.memaddrs.length > 0}
+          → {a : Fin s.mems.length}
+          → {da : Fin s.datas.length}
+          → {y : Fin f.module.dataaddrs.length}
+          → {_ : Vec.index s.mems a = f.module.memaddrs.get ⟨0, h₁⟩}
+          → {_ : m = s.mems.get a}
+          → {_ : Vec.index s.datas da = f.module.dataaddrs.get y}
+          → {_ : dat = s.datas.get da}
+          → {_ : src.toNat + n.toNat > dat.data.length ∨ dst.toNat + n.toNat > m.data.length}
+          → Memory (s, (f, mem (.init (Vec.index f.module.dataaddrs y)) :: @const .double n :: @const .double src :: @const .double dst :: is))
+                   (s, (f, .admin .trap :: is))
+| data_drop : {da : Fin s.datas.length}
+            → {x : Fin f.module.dataaddrs.length}
+            → {_ : Vec.index s.datas da = f.module.dataaddrs.get x}
+            → {_ : dat = s.datas.get da}
+            → Memory (s, (f, mem (.data_drop (Vec.index f.module.dataaddrs x)) :: is))
+                     ({s with datas := s.datas.set da {data := Vec.nil}}, (f, is))
+
+end Step.Memory
 
 inductive Instr : Step
 | numeric   : Numeric config config'
@@ -607,9 +886,46 @@ inductive Instr : Step
             → {_ : elem = s.elems.get a}
             → Instr (s, (f, .real (.elem_drop (Vec.index f.module.elemaddrs x)) :: is))
                     ({s with elems := s.elems.set a {elem with elem := Vec.nil}}, (f, is))
--- todo memory
+| memory    : Step.Memory.Memory config config'
+            → Instr config config'
 | nop       : Instr (s, (f, .real .nop :: is))
                     (s, (f, is))
 | trap      : Instr (s, (f, .real .unreachable :: is))
                     (s, (f, .admin .trap :: is))
--- todo rest
+| block     : {bt : Wasm.Syntax.Instr.BlockType}
+            → {instrs : List Syntax.Instr}
+            → {wasm_end : Syntax.Instr.Pseudo}
+            → {_ : wasm_end = .wasm_end}
+            → Instr (s, (f, .real (.block bt instrs wasm_end) :: is))
+                    (s, (f, .admin (.label (Stack.Label.label 0 []) (instrs.map .real) .wasm_end) :: is))
+| loop      : {bt : Wasm.Syntax.Instr.BlockType}
+            → {instrs : List Syntax.Instr}
+            → {wasm_end : Syntax.Instr.Pseudo}
+            → {_ : wasm_end = .wasm_end}
+            → Instr (s, (f, .real (.loop bt instrs wasm_end) :: is))
+                    (s, (f, .admin (.label (Stack.Label.label 0 [.real (.loop bt instrs wasm_end)]) (instrs.map .real) .wasm_end) :: is))
+| wasm_if_t : {bt : Wasm.Syntax.Instr.BlockType}
+            → {instrs_then instrs_else : List Syntax.Instr}
+            → {wasm_else : Syntax.Instr.Pseudo}
+            → {_ : wasm_else = .wasm_else}
+            → {wasm_end : Syntax.Instr.Pseudo}
+            → {_ : wasm_end = .wasm_end}
+            → {c : Unsigned (Numeric.Size.toBits .double)}
+            → {_ : c ≠ 0}
+            → Instr (s, (f, .real (.wasm_if bt instrs_then wasm_else instrs_else wasm_end) :: const c :: is))
+                    (s, (f, .admin (.label (Stack.Label.label 0 []) (instrs_then.map .real) .wasm_end) :: is))
+| wasm_if_f : {bt : Wasm.Syntax.Instr.BlockType}
+            → {instrs_then instrs_else : List Syntax.Instr}
+            → {wasm_else : Syntax.Instr.Pseudo}
+            → {_ : wasm_else = .wasm_else}
+            → {wasm_end : Syntax.Instr.Pseudo}
+            → {_ : wasm_end = .wasm_end}
+            → {c : Unsigned (Numeric.Size.toBits .double)}
+            → {_ : c = 0}
+            → Instr (s, (f, .real (.wasm_if bt instrs_then wasm_else instrs_else wasm_end) :: const c :: is))
+                    (s, (f, .admin (.label (Stack.Label.label 0 []) (instrs_else.map .real) .wasm_end) :: is))
+| call      : {x : Fin f.module.funcaddrs.length}
+            → {a : Fin s.funcs.length}
+            → {_ : Vec.index s.funcs a = f.module.funcaddrs.get x}
+            → Instr (s, (f, .real (.call (Vec.index f.module.funcaddrs x)) :: is))
+                    (s, (f, .admin (.invoke (f.module.funcaddrs.get x)) :: is))

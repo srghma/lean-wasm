@@ -125,6 +125,15 @@ structure Name where
 
 end Syntax.Value
 
+namespace Syntax.Value.Bytes
+
+def toList (bytes : Bytes) : List Byte :=
+  match bytes with
+  | .fst b => [b]
+  | .cons b bs => b :: toList bs
+
+end Syntax.Value.Bytes
+
 def Vec.index (v : Vec α) (i : Fin v.length) : Unsigned32 := by
   have h := i.isLt
   have h' := v.maxLen
