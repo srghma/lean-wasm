@@ -61,7 +61,7 @@ represented, but the implementation of floats isn't yet.
   - [ ] Numerics
     - [x] Integer Operations
     - [ ] Floating-point Operations
-    - [ ] Conversions
+    - [x] Conversions
   - [ ] Instructions
     - [ ] Numeric
       - [ ] Floating-point
@@ -74,10 +74,10 @@ represented, but the implementation of floats isn't yet.
     - [x] Memory
     - [x] Blocks
     - [x] Function Calls
-    - [ ] Expressions
+    - [x] Expressions
   - [ ] Modules
     - [ ] External Typing
-    - [ ] Value Typing
+    - [x] Value Typing
     - [ ] Allocation
     - [ ] Instantiation
     - [ ] Invocation
