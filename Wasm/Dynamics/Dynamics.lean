@@ -203,9 +203,107 @@ inductive Integer : Step
 
 end Numeric
 
+def flt {nn : Numeric.Size}
+        (instr : Syntax.Instr.Numeric.Float nn)
+        : Dynamics.Instr.Dynamic :=
+  .real (.numeric ((.float instr) : (Syntax.Instr.Numeric nn)))
+
+def fconst {nn : Numeric.Size} (v : Float) :=
+  @flt nn (.const v)
+
+namespace Step.Numeric.Float
+
+def funop {nn : Numeric.Size}
+          (op : Syntax.Instr.Numeric.Float.Unop)
+          : Dynamics.Instr.Dynamic :=
+  @flt nn (.unop op)
+
+inductive Unop : Step
+| neg     : {nn : Numeric.Size}
+          → {c : Float}
+          → Unop (s, (f, funop .neg :: fconst c :: is))
+                 (s, (f, fconst (-c) :: is))
+| abs     : {nn : Numeric.Size}
+          → {c : Float}
+          → Unop (s, (f, funop .abs :: fconst c :: is))
+                 (s, (f, fconst (if c < 0 then -c else c) :: is))
+
+def fbinop {nn : Numeric.Size}
+           (op : Syntax.Instr.Numeric.Float.Binop)
+           : Dynamics.Instr.Dynamic :=
+  @flt nn (.binop op)
+
+inductive Binop : Step
+| add     : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Binop (s, (f, fbinop .add :: fconst c₂ :: fconst c₁ :: is))
+                  (s, (f, fconst (c₁ + c₂) :: is))
+| sub     : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Binop (s, (f, fbinop .sub :: fconst c₂ :: fconst c₁ :: is))
+                  (s, (f, fconst (c₁ - c₂) :: is))
+| mul     : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Binop (s, (f, fbinop .mul :: fconst c₂ :: fconst c₁ :: is))
+                  (s, (f, fconst (c₁ * c₂) :: is))
+| div     : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Binop (s, (f, fbinop .div :: fconst c₂ :: fconst c₁ :: is))
+                  (s, (f, fconst (c₁ / c₂) :: is))
+
+def frelop {nn : Numeric.Size}
+           (op : Syntax.Instr.Numeric.Float.Relation)
+           : Dynamics.Instr.Dynamic :=
+  @flt nn (.relation op)
+
+inductive Relation : Step
+| eq      : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Relation (s, (f, frelop .eq :: fconst c₂ :: fconst c₁ :: is))
+                     (s, (f, const (Unsigned.ofNat (if c₁ == c₂ then 1 else 0)) :: is))
+| ne      : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Relation (s, (f, frelop .ne :: fconst c₂ :: fconst c₁ :: is))
+                     (s, (f, const (Unsigned.ofNat (if c₁ != c₂ then 1 else 0)) :: is))
+| lt      : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Relation (s, (f, frelop .lt :: fconst c₂ :: fconst c₁ :: is))
+                     (s, (f, const (Unsigned.ofNat (if c₁ < c₂ then 1 else 0)) :: is))
+| gt      : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Relation (s, (f, frelop .gt :: fconst c₂ :: fconst c₁ :: is))
+                     (s, (f, const (Unsigned.ofNat (if c₁ > c₂ then 1 else 0)) :: is))
+| le      : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Relation (s, (f, frelop .le :: fconst c₂ :: fconst c₁ :: is))
+                     (s, (f, const (Unsigned.ofNat (if c₁ <= c₂ then 1 else 0)) :: is))
+| ge      : {nn : Numeric.Size}
+          → {c₁ c₂ : Float}
+          → Relation (s, (f, frelop .ge :: fconst c₂ :: fconst c₁ :: is))
+                     (s, (f, const (Unsigned.ofNat (if c₁ >= c₂ then 1 else 0)) :: is))
+
+end Float
+
+inductive Float : Step
+| unop        : Float.Unop config config' → Float config config'
+| binop       : Float.Binop config config' → Float config config'
+| relation    : Float.Relation config config' → Float config config'
+| demote_f64  : {c₁ : Wasm.Syntax.Value.FloatN (Numeric.Size.toBits .quad)}
+              → {c₂ : Wasm.Syntax.Value.FloatN (Numeric.Size.toBits .double)}
+              → {_ : c₂ = c₁}
+              → Float (s, (f, flt .demote_f64 :: fconst c₁ :: is))
+                      (s, (f, fconst c₂ :: is))
+| promote_f32 : {c₁ : Wasm.Syntax.Value.FloatN (Numeric.Size.toBits .double)}
+              → {c₂ : Wasm.Syntax.Value.FloatN (Numeric.Size.toBits .quad)}
+              → {_ : c₂ = c₁}
+              → Float (s, (f, flt .promote_f32 :: fconst c₁ :: is))
+                      (s, (f, fconst c₂ :: is))
+
+end Step.Numeric
+
 inductive Numeric : Step
 | integer : Numeric.Integer config config' → Numeric config config'
-| float   : False → Numeric config config' -- todo
+| float   : Step.Numeric.Float config config' → Numeric config config'
 
 
 

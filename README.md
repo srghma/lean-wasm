@@ -60,11 +60,11 @@ represented, but the implementation of floats isn't yet.
   - [x] Runtime Structure
   - [ ] Numerics
     - [x] Integer Operations
-    - [ ] Floating-point Operations
+    - [x] Floating-point Operations
     - [x] Conversions
   - [ ] Instructions
     - [ ] Numeric
-      - [ ] Floating-point
+      - [x] Floating-point
       - [x] All other numerics
     - [x] Reference
     - [ ] Vector
