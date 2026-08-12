@@ -71,7 +71,7 @@ represented, but the implementation of floats isn't yet.
     - [x] Parametric
     - [x] Variable
     - [x] Table
-    - [ ] Memory
+    - [x] Memory
     - [ ] Blocks
     - [ ] Function Calls
     - [ ] Expressions
