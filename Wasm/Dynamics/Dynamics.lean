@@ -892,4 +892,40 @@ inductive Instr : Step
                     (s, (f, is))
 | trap      : Instr (s, (f, .real .unreachable :: is))
                     (s, (f, .admin .trap :: is))
--- todo rest
+| block     : {bt : Wasm.Syntax.Instr.BlockType}
+            → {instrs : List Syntax.Instr}
+            → {wasm_end : Syntax.Instr.Pseudo}
+            → {_ : wasm_end = .wasm_end}
+            → Instr (s, (f, .real (.block bt instrs wasm_end) :: is))
+                    (s, (f, .admin (.label (Stack.Label.label 0 []) (instrs.map .real) .wasm_end) :: is))
+| loop      : {bt : Wasm.Syntax.Instr.BlockType}
+            → {instrs : List Syntax.Instr}
+            → {wasm_end : Syntax.Instr.Pseudo}
+            → {_ : wasm_end = .wasm_end}
+            → Instr (s, (f, .real (.loop bt instrs wasm_end) :: is))
+                    (s, (f, .admin (.label (Stack.Label.label 0 [.real (.loop bt instrs wasm_end)]) (instrs.map .real) .wasm_end) :: is))
+| wasm_if_t : {bt : Wasm.Syntax.Instr.BlockType}
+            → {instrs_then instrs_else : List Syntax.Instr}
+            → {wasm_else : Syntax.Instr.Pseudo}
+            → {_ : wasm_else = .wasm_else}
+            → {wasm_end : Syntax.Instr.Pseudo}
+            → {_ : wasm_end = .wasm_end}
+            → {c : Unsigned (Numeric.Size.toBits .double)}
+            → {_ : c ≠ 0}
+            → Instr (s, (f, .real (.wasm_if bt instrs_then wasm_else instrs_else wasm_end) :: const c :: is))
+                    (s, (f, .admin (.label (Stack.Label.label 0 []) (instrs_then.map .real) .wasm_end) :: is))
+| wasm_if_f : {bt : Wasm.Syntax.Instr.BlockType}
+            → {instrs_then instrs_else : List Syntax.Instr}
+            → {wasm_else : Syntax.Instr.Pseudo}
+            → {_ : wasm_else = .wasm_else}
+            → {wasm_end : Syntax.Instr.Pseudo}
+            → {_ : wasm_end = .wasm_end}
+            → {c : Unsigned (Numeric.Size.toBits .double)}
+            → {_ : c = 0}
+            → Instr (s, (f, .real (.wasm_if bt instrs_then wasm_else instrs_else wasm_end) :: const c :: is))
+                    (s, (f, .admin (.label (Stack.Label.label 0 []) (instrs_else.map .real) .wasm_end) :: is))
+| call      : {x : Fin f.module.funcaddrs.length}
+            → {a : Fin s.funcs.length}
+            → {_ : Vec.index s.funcs a = f.module.funcaddrs.get x}
+            → Instr (s, (f, .real (.call (Vec.index f.module.funcaddrs x)) :: is))
+                    (s, (f, .admin (.invoke (f.module.funcaddrs.get x)) :: is))
