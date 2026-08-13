@@ -36,6 +36,22 @@ structure Table where
   type : Syntax.Typ.Table
   elem : Vec Value.Reference
 
+def Table.grow (tab : Table) (n : Nat) (v : Value.Reference) : Option Table :=
+  let new_len := tab.elem.length + n
+  if h : new_len < Vec.max_length then
+    let max_ok : Bool :=
+      match tab.type.fst.max with
+      | Option.none => true
+      | Option.some max_val => new_len ≤ max_val.val
+    if max_ok then
+      have h_len : (tab.elem.list ++ List.replicate n v).length = new_len := by
+        simp [new_len]
+      .some ⟨tab.type, ⟨tab.elem.list ++ List.replicate n v, by rw [h_len]; exact h⟩⟩
+    else
+      .none
+  else
+    .none
+
 structure Memory where
   type : Syntax.Typ.Mem
   data : Vec Syntax.Value.Byte

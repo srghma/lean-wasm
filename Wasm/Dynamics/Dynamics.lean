@@ -160,6 +160,72 @@ inductive Relation : Step
 
 end Integer
 
+def natToUnsigned (n : Nat) (val : Nat) : Numbers.Unsigned n :=
+  ⟨val % Nat.pow 2 n, Nat.mod_lt _ (Nat.pow_pos (by decide))⟩
+
+def Float.toUnsigned (nn : Numeric.Size) (f : _root_.Float) : Numbers.Unsigned (Numeric.Size.toBits nn).val :=
+  match nn with
+  | .double => natToUnsigned (Numeric.Size.toBits .double).val f.toUInt32.toNat
+  | .quad => natToUnsigned (Numeric.Size.toBits .quad).val f.toUInt64.toNat
+
+def floatToUnsignedOpt (nn : Numeric.Size) (f : _root_.Float) (sign : Syntax.Instr.Numeric.Sign) : Option (Numbers.Unsigned (Numeric.Size.toBits nn).val) :=
+  if f.isNaN then
+    Option.none
+  else
+    let (min_val, max_val) : _root_.Float × _root_.Float :=
+      match sign with
+      | .u =>
+        match nn with
+        | .double => (0.0, 4294967295.0)
+        | .quad   => (0.0, 18446744073709551615.0)
+      | .s =>
+        match nn with
+        | .double => (-2147483648.0, 2147483647.0)
+        | .quad   => (-9223372036854775808.0, 9223372036854775807.0)
+    if f < min_val || f > max_val then
+      Option.none
+    else
+      Option.some (Float.toUnsigned nn f)
+
+def floatToUnsignedSat (nn : Numeric.Size) (f : _root_.Float) (sign : Syntax.Instr.Numeric.Sign) : Numbers.Unsigned (Numeric.Size.toBits nn).val :=
+  if f.isNaN then
+    natToUnsigned (Numeric.Size.toBits nn).val 0
+  else
+    let (min_f, max_f, min_val, max_val) : _root_.Float × _root_.Float × Nat × Nat :=
+      match sign with
+      | .u =>
+        match nn with
+        | .double => (0.0, 4294967295.0, 0, 4294967295)
+        | .quad   => (0.0, 18446744073709551615.0, 0, 18446744073709551615)
+      | .s =>
+        match nn with
+        | .double => (-2147483648.0, 2147483647.0, 2147483648, 2147483647)
+        | .quad   => (-9223372036854775808.0, 9223372036854775807.0, 9223372036854775808, 9223372036854775807)
+    if f < min_f then
+      natToUnsigned (Numeric.Size.toBits nn).val min_val
+    else if f > max_f then
+      natToUnsigned (Numeric.Size.toBits nn).val max_val
+    else
+      Float.toUnsigned nn f
+
+def floatToUnsignedReinterpret (nn : Numeric.Size) (f : _root_.Float) : Numbers.Unsigned (Numeric.Size.toBits nn).val :=
+  Float.toUnsigned nn f
+
+def unsignedToFloatSigned (mm : Numeric.Size) (val : Numbers.Unsigned (Numeric.Size.toBits mm).val) : _root_.Float :=
+  let limit : Nat := Nat.pow 2 ((Numeric.Size.toBits mm).val - 1)
+  if val.val < limit then
+    val.val.toFloat
+  else
+    val.val.toFloat - (Nat.pow 2 (Numeric.Size.toBits mm).val).toFloat
+
+def unsignedToFloat (mm : Numeric.Size) (val : Numbers.Unsigned (Numeric.Size.toBits mm).val) (sign : Syntax.Instr.Numeric.Sign) : _root_.Float :=
+  match sign with
+  | .u => val.val.toFloat
+  | .s => unsignedToFloatSigned mm val
+
+def unsignedToFloatReinterpret (nn : Numeric.Size) (val : Numbers.Unsigned (Numeric.Size.toBits nn).val) : _root_.Float :=
+  val.val.toFloat
+
 inductive Integer : Step
 | unop        : Integer.Unop config config' → Integer config config'
 | binop       : Integer.Binop config config' → Integer config config'
@@ -199,7 +265,32 @@ inductive Integer : Step
               → {_ : (Signed.extend c₁) = c₂}
               → Integer (s, (f, int (.extend_i32 .s) :: const c₁ :: is))
                         (s, (f, const c₂ :: is))
--- todo: add trunc/reinterpret
+| trunc_f     : {nn mm : Numeric.Size}
+              → {s_sign : Syntax.Instr.Numeric.Sign}
+              → {c₁ : _root_.Float}
+              → {c₂ : Unsigned (Numeric.Size.toBits nn).val}
+              → {_ : Option.some c₂ = Step.Numeric.floatToUnsignedOpt nn c₁ s_sign}
+              → Integer (s, (f, .real (.numeric ((.integer (Numeric.Integer.trunc_f mm s_sign)) : Wasm.Syntax.Instr.Numeric mm)) :: .real (.numeric ((.float (Numeric.Float.const c₁)) : Wasm.Syntax.Instr.Numeric mm)) :: is))
+                        (s, (f, .real (.numeric ((.integer (Numeric.Integer.const c₂)) : Wasm.Syntax.Instr.Numeric nn)) :: is))
+| trunc_f_trap: {nn mm : Numeric.Size}
+              → {s_sign : Syntax.Instr.Numeric.Sign}
+              → {c₁ : _root_.Float}
+              → {_ : Option.none = Step.Numeric.floatToUnsignedOpt nn c₁ s_sign}
+              → Integer (s, (f, .real (.numeric ((.integer (Numeric.Integer.trunc_f mm s_sign)) : Wasm.Syntax.Instr.Numeric mm)) :: .real (.numeric ((.float (Numeric.Float.const c₁)) : Wasm.Syntax.Instr.Numeric mm)) :: is))
+                        (s, (f, .admin .trap :: is))
+| trunc_sat_f : {nn mm : Numeric.Size}
+              → {s_sign : Syntax.Instr.Numeric.Sign}
+              → {c₁ : _root_.Float}
+              → {c₂ : Unsigned (Numeric.Size.toBits nn).val}
+              → {_ : c₂ = Step.Numeric.floatToUnsignedSat nn c₁ s_sign}
+              → Integer (s, (f, .real (.numeric ((.integer (Numeric.Integer.trunc_sat_f mm s_sign)) : Wasm.Syntax.Instr.Numeric mm)) :: .real (.numeric ((.float (Numeric.Float.const c₁)) : Wasm.Syntax.Instr.Numeric mm)) :: is))
+                        (s, (f, .real (.numeric ((.integer (Numeric.Integer.const c₂)) : Wasm.Syntax.Instr.Numeric nn)) :: is))
+| reinterpret_f: {nn : Numeric.Size}
+              → {c₁ : _root_.Float}
+              → {c₂ : Unsigned (Numeric.Size.toBits nn).val}
+              → {_ : c₂ = Step.Numeric.floatToUnsignedReinterpret nn c₁}
+              → Integer (s, (f, .real (.numeric ((.integer Numeric.Integer.reinterpret_f) : Wasm.Syntax.Instr.Numeric nn)) :: .real (.numeric ((.float (Numeric.Float.const c₁)) : Wasm.Syntax.Instr.Numeric nn)) :: is))
+                        (s, (f, .real (.numeric ((.integer (Numeric.Integer.const c₂)) : Wasm.Syntax.Instr.Numeric nn)) :: is))
 
 end Numeric
 
@@ -298,6 +389,19 @@ inductive Float : Step
               → {_ : c₂ = c₁}
               → Float (s, (f, flt .promote_f32 :: fconst c₁ :: is))
                       (s, (f, fconst c₂ :: is))
+| convert_i   : {nn mm : Numeric.Size}
+              → {s_sign : Syntax.Instr.Numeric.Sign}
+              → {c₁ : Unsigned (Numeric.Size.toBits mm).val}
+              → {c₂ : _root_.Float}
+              → {_ : c₂ = Step.Numeric.unsignedToFloat mm c₁ s_sign}
+              → Float (s, (f, .real (.numeric ((.float (Numeric.Float.convert_i mm s_sign)) : Wasm.Syntax.Instr.Numeric nn)) :: .real (.numeric ((.integer (Numeric.Integer.const c₁)) : Wasm.Syntax.Instr.Numeric mm)) :: is))
+                      (s, (f, .real (.numeric ((.float (Numeric.Float.const c₂)) : Wasm.Syntax.Instr.Numeric nn)) :: is))
+| reinterpret_i: {nn : Numeric.Size}
+              → {c₁ : Unsigned (Numeric.Size.toBits nn).val}
+              → {c₂ : _root_.Float}
+              → {_ : c₂ = Step.Numeric.unsignedToFloatReinterpret nn c₁}
+              → Float (s, (f, .real (.numeric ((.float Numeric.Float.reinterpret_i) : Wasm.Syntax.Instr.Numeric nn)) :: .real (.numeric ((.integer (Numeric.Integer.const c₁)) : Wasm.Syntax.Instr.Numeric nn)) :: is))
+                      (s, (f, .real (.numeric ((.float (Numeric.Float.const c₂)) : Wasm.Syntax.Instr.Numeric nn)) :: is))
 
 end Step.Numeric
 
@@ -391,7 +495,7 @@ inductive Table : Step
           → {_ : tab = s.tables.get a}
           → {h : sz  = tab.elem.length}
           → {_ : IsValue val (.ref v)}
-          → {_ : False} -- todo implement growtable {_ : .some tab' = growtable (tab, n, v)}
+          → {_ : Option.some tab' = tab.grow n.toNat v}
           → {_ : s' = {s with tables := s.tables.set a tab'}}
           → Table (s, (f, table (.grow (Vec.index f.module.tableaddrs x)) :: @const .double n :: val :: is))
                   (s', (f, @const .double ⟨sz, by rw [h]; exact tab.elem.maxLen⟩ :: is))
@@ -400,7 +504,7 @@ inductive Table : Step
           → {_ : tab = s.tables.get a}
           → {_ : sz  = tab.elem.length}
           → {_ : IsValue val (.ref v)}
-          → {_ : False} -- todo implement growtable {_ : .none = growtable (tab, n, v)}
+          → {_ : Option.none = tab.grow n.toNat v}
           → Table (s, (f, table (.grow (Vec.index f.module.tableaddrs x)) :: @const .double n :: val :: is))
                   (s, (f, @const .double (Signed.ofInt (-1)) :: is))
 | fill    : {ta : Fin (Vec.length s.tables)}

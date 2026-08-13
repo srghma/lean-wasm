@@ -58,12 +58,12 @@ represented, but the implementation of floats isn't yet.
   - [ ] Type-checker
 - [ ] Dynamics/Execution
   - [x] Runtime Structure
-  - [ ] Numerics
+  - [x] Numerics
     - [x] Integer Operations
     - [x] Floating-point Operations
     - [x] Conversions
-  - [ ] Instructions
-    - [ ] Numeric
+  - [x] Instructions
+    - [x] Numeric
       - [x] Floating-point
       - [x] All other numerics
     - [x] Reference
