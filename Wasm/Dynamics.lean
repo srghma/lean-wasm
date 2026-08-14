@@ -7,3 +7,4 @@ import Wasm.Dynamics.Stack
 import Wasm.Dynamics.Evaluation
 import Wasm.Dynamics.Context
 import Wasm.Dynamics.Dynamics
+import Wasm.Dynamics.Allocation
