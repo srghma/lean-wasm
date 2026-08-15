@@ -266,6 +266,12 @@ def Module.imports : Module → List Module.Import :=
 def Module.exports : Module → List Module.Export :=
   (·.findAll (fun | .exports e => .some e | _ => .none))
 
+def vecAppend (v₁ v₂ : Vec α) (msg : String) : Trans (Vec α) := do
+  if h : v₁.length + v₂.length < Vec.max_length then
+    return Vec.append v₁ v₂ h
+  else
+    Trans.Error.errMsg s!"Module size limit exceeded for {msg}"
+
 def Module.compose (m₁ m₂ : Syntax.Module) : Trans Syntax.Module := do
   match m₁.start, m₂.start with
   | .some _, .some _ =>
@@ -281,16 +287,25 @@ def Module.compose (m₁ m₂ : Syntax.Module) : Trans Syntax.Module := do
         if m₁.globals.length ≠ 0 then
           Trans.Error.errMsg s!"Imports must preceed definitions of globals"
       )
-    return { types   := ⟨m₁.types.list   ++ m₂.types.list  , sorry⟩
-             funcs   := ⟨m₁.funcs.list   ++ m₂.funcs.list  , sorry⟩
-             tables  := ⟨m₁.tables.list  ++ m₂.tables.list , sorry⟩
-             mems    := ⟨m₁.mems.list    ++ m₂.mems.list   , sorry⟩
-             globals := ⟨m₁.globals.list ++ m₂.globals.list, sorry⟩
-             elems   := ⟨m₁.elems.list   ++ m₂.elems.list  , sorry⟩
-             datas   := ⟨m₁.datas.list   ++ m₂.datas.list  , sorry⟩
-             start   := if m₁.start.isNone then m₂.start else m₁.start
-             imports := ⟨m₁.imports.list ++ m₂.imports.list, sorry⟩
-             exports := ⟨m₁.exports.list ++ m₂.exports.list, sorry⟩
+    let types   ← vecAppend m₁.types m₂.types "types"
+    let funcs   ← vecAppend m₁.funcs m₂.funcs "funcs"
+    let tables  ← vecAppend m₁.tables m₂.tables "tables"
+    let mems    ← vecAppend m₁.mems m₂.mems "mems"
+    let globals ← vecAppend m₁.globals m₂.globals "globals"
+    let elems   ← vecAppend m₁.elems m₂.elems "elems"
+    let datas   ← vecAppend m₁.datas m₂.datas "datas"
+    let imports ← vecAppend m₁.imports m₂.imports "imports"
+    let exports ← vecAppend m₁.exports m₂.exports "exports"
+    return { types   := types,
+             funcs   := funcs,
+             tables  := tables,
+             mems    := mems,
+             globals := globals,
+             elems   := elems,
+             datas   := datas,
+             start   := if m₁.start.isNone then m₂.start else m₁.start,
+             imports := imports,
+             exports := exports
            }
 
 instance : Coe Syntax.Module Module :=
@@ -315,13 +330,16 @@ def Module.trans (m : Module) : Trans Syntax.Module := do
   let m ← m.fields.foldlM (fun m₁ f => do
       let s ← get
       let m₂' ← ofText f
-      let m₂ ← Module.compose m₂' {types := ⟨s.types, sorry⟩}
+      let types_vec ← if h : s.types.length < Vec.max_length then pure ⟨s.types, h⟩ else Trans.Error.errMsg "Types size limit exceeded"
+      let m₂ ← Module.compose m₂' {types := types_vec}
       Trans.updateI s.I
       Trans.mergeTypes
       return ← Module.compose m₁ m₂
     ) {}
   let s ← get
-  return { m with types := ⟨m.types.list ++ s.I.typedefs, sorry⟩}
+  let typedefs_vec ← if h : s.I.typedefs.length < Vec.max_length then pure ⟨s.I.typedefs, h⟩ else Trans.Error.errMsg "Typedefs size limit exceeded"
+  let new_types ← vecAppend m.types typedefs_vec "types"
+  return { m with types := new_types }
 instance : OfText Module Syntax.Module := ⟨Module.trans⟩
 
 namespace Module
