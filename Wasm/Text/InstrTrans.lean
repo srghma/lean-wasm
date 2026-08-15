@@ -71,6 +71,7 @@ end Instr
 def Instr.Plain.trans : Instr.Plain → Trans Syntax.Instr
 | .numeric n         => return .numeric n
 | .reference r       => return .reference (← ofText r)
+| .vec v             => return .vec v
 -- Parametric
 | .drop              => return .drop
 | .select s          => return .select s

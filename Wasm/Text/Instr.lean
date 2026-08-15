@@ -96,6 +96,7 @@ end Instr
 inductive Instr.Plain
 | numeric       : (Syntax.Instr.Numeric nn) → Instr.Plain
 | reference     : Instr.Reference → Instr.Plain
+| vec           : Syntax.Instr.Vector → Instr.Plain
 -- Parametric
 | drop
 | select        : Option (List Syntax.Typ.Val) → Instr.Plain
@@ -162,6 +163,7 @@ mutual
 def Instr.ofSyntaxInstr : Syntax.Instr → Instr
   | .numeric n            => .plain (.numeric n)
   | .reference r          => .plain (.reference r)
+  | .vec v                => .plain (.vec v)
   | .drop                 => .plain .drop
   | .select v             => .plain (.select v)
   | .locl l               => .plain (.locl l)
@@ -395,6 +397,7 @@ end Memory
 def Plain.toString : Instr.Plain → String
   | .numeric      n => s!"({n})"
   | .reference    r => s!"({r})"
+  | .vec          v => "(vec)"
   -- Parametric
   | .drop           => "drop"
   | .select t?      =>

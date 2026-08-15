@@ -67,7 +67,7 @@ represented, but the implementation of floats isn't yet.
       - [x] Floating-point
       - [x] All other numerics
     - [x] Reference
-    - [ ] Vector
+    - [x] Vector
     - [x] Parametric
     - [x] Variable
     - [x] Table
@@ -78,9 +78,9 @@ represented, but the implementation of floats isn't yet.
   - [ ] Modules
     - [ ] External Typing
     - [x] Value Typing
-    - [ ] Allocation
-    - [ ] Instantiation
-    - [ ] Invocation
+    - [x] Allocation
+    - [x] Instantiation
+    - [x] Invocation
   - [ ] Intepreter
 - [ ] Formats
   - [x] Binary

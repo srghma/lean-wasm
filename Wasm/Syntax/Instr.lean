@@ -133,6 +133,8 @@ inductive Numeric : (nn : Numeric.Size) → Type
 
 
 -- todo vector instructions
+inductive Vector : Type
+| const : Typ.Vec → Vector
 
 inductive Reference
 | null : Typ.Ref → Reference
@@ -208,6 +210,7 @@ inductive Instr.Pseudo
 inductive Instr : Type
 | numeric       : (Instr.Numeric nn) → Instr
 | reference     : Instr.Reference → Instr
+| vec           : Instr.Vector → Instr
 -- Parametric
 | drop
 | select        : Option (List Typ.Val) → Instr

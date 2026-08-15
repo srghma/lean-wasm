@@ -8,3 +8,5 @@ import Wasm.Dynamics.Evaluation
 import Wasm.Dynamics.Context
 import Wasm.Dynamics.Dynamics
 import Wasm.Dynamics.Allocation
+import Wasm.Dynamics.Instantiation
+import Wasm.Dynamics.Invocation

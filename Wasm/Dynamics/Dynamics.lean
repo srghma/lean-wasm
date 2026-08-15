@@ -1054,12 +1054,25 @@ inductive Memory : Step
 
 end Step.Memory
 
+def vec (instr : Syntax.Instr.Vector) : Dynamics.Instr.Dynamic :=
+  .real (.vec instr)
+
+namespace Step.Vector
+
+inductive Vector : Step
+| const : {v : Syntax.Typ.Vec}
+        → Vector (s, (f, vec (.const v) :: is))
+                 (s, (f, is))
+
+end Step.Vector
+
 inductive Instr : Step
 | numeric   : Numeric config config'
             → Instr config config'
 | reference : Reference config config'
             → Instr config config'
--- todo vector
+| vec       : Step.Vector.Vector config config'
+            → Instr config config'
 | drop      : IsValue val _
             → Instr (s, (f, .real .drop :: val :: is))
                     (s, (f, is))
